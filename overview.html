@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maschinen Übersicht</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Maschinen Übersicht</h1>
+            <div class="header-actions">
+                <span id="current-user" class="user-info"></span>
+                <button id="logout-btn" class="btn btn-secondary">Abmelden</button>
+            </div>
+        </header>
+
+        <div class="toolbar">
+            <button id="add-entry-btn" class="btn btn-primary">+ Neuer Eintrag</button>
+            <button id="toggle-filters-btn" class="btn btn-secondary">Filter anzeigen/ausblenden</button>
+        </div>
+
+        <div id="filters-container" class="filters-container" style="display: none;">
+            <h3>Filter</h3>
+            <div class="filters-grid">
+                <div class="filter-group">
+                    <label>Fega Nr.</label>
+                    <input type="text" id="filter-fega-nr" placeholder="Filtern...">
+                </div>
+                <div class="filter-group">
+                    <label>Typ</label>
+                    <input type="text" id="filter-typ" placeholder="Filtern...">
+                </div>
+                <div class="filter-group">
+                    <label>Abteilung</label>
+                    <input type="text" id="filter-abteilung" placeholder="Filtern...">
+                </div>
+                <div class="filter-group">
+                    <label>Betr. Std.</label>
+                    <input type="text" id="filter-betr-std" placeholder="Filtern...">
+                </div>
+                <div class="filter-group">
+                    <label>UVV/PSA Status</label>
+                    <select id="filter-uvv-status">
+                        <option value="">Alle</option>
+                        <option value="green">Grün (Gültig)</option>
+                        <option value="yellow">Gelb (Bald fällig)</option>
+                        <option value="red">Rot (Überfällig)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Kommentar</label>
+                    <input type="text" id="filter-kommentar" placeholder="Filtern...">
+                </div>
+            </div>
+            <button id="reset-filters-btn" class="btn btn-secondary">Filter zurücksetzen</button>
+        </div>
+
+        <div class="table-container">
+            <table id="machines-table" class="machines-table">
+                <thead>
+                    <tr>
+                        <th>Fega Nr.</th>
+                        <th>Typ</th>
+                        <th>Abteilung</th>
+                        <th>Betr. Std.</th>
+                        <th>UVV/PSA</th>
+                        <th>Kommentar</th>
+                        <th>Letzte Änderung</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody id="machines-tbody">
+                    <!-- Dynamisch gefüllt -->
+                </tbody>
+            </table>
+            <div id="no-data-message" class="no-data-message" style="display: none;">
+                Keine Einträge vorhanden. Klicken Sie auf "Neuer Eintrag", um zu beginnen.
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal für Eintrag erstellen/bearbeiten -->
+    <div id="entry-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Neuer Eintrag</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <form id="entry-form">
+                <div class="form-group">
+                    <label for="fega-nr">Fega Nr. *</label>
+                    <input type="number" id="fega-nr" name="fega-nr" required>
+                </div>
+                <div class="form-group">
+                    <label for="typ">Typ *</label>
+                    <div class="select-with-add">
+                        <select id="typ" name="typ" required>
+                            <option value="">Bitte wählen...</option>
+                        </select>
+                        <button type="button" id="add-typ-btn" class="btn-small">+ Neu</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="abteilung">Abteilung *</label>
+                    <div class="select-with-add">
+                        <select id="abteilung" name="abteilung" required>
+                            <option value="">Bitte wählen...</option>
+                        </select>
+                        <button type="button" id="add-abteilung-btn" class="btn-small">+ Neu</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="betr-std">Betr. Std. (Stunden)</label>
+                    <input type="number" id="betr-std" name="betr-std" step="0.1" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="uvv-psa">UVV/PSA (Monat/Jahr) *</label>
+                    <input type="month" id="uvv-psa" name="uvv-psa" required>
+                </div>
+                <div class="form-group">
+                    <label for="kommentar">Kommentar</label>
+                    <textarea id="kommentar" name="kommentar" rows="4"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary" id="save-entry-btn">Speichern</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-entry-btn">Abbrechen</button>
+                </div>
+                <input type="hidden" id="edit-fega-nr" value="">
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal für neue Dropdown-Einträge -->
+    <div id="add-option-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="add-option-title">Neuer Eintrag</h2>
+                <span class="close-add-option-modal">&times;</span>
+            </div>
+            <form id="add-option-form">
+                <div class="form-group">
+                    <label for="new-option-value">Bezeichnung *</label>
+                    <input type="text" id="new-option-value" name="new-option-value" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Hinzufügen</button>
+                    <button type="button" class="btn btn-secondary close-add-option-modal">Abbrechen</button>
+                </div>
+                <input type="hidden" id="option-field-type" value="">
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="js/firebase-config.js"></script>
+    <script type="module" src="js/overview.js"></script>
+</body>
+</html>
+

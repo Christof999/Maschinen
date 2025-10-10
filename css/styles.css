@@ -7,7 +7,7 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #FF4500 0%, #FF6B35 100%);
     min-height: 100vh;
     color: #333;
 }
@@ -30,8 +30,15 @@ body {
     max-width: 400px;
 }
 
+.login-logo {
+    display: block;
+    margin: 0 auto 20px;
+    max-width: 200px;
+    height: auto;
+}
+
 .login-box h1 {
-    color: #667eea;
+    color: #FF4500;
     margin-bottom: 10px;
     text-align: center;
     font-size: 28px;
@@ -60,11 +67,23 @@ body {
     align-items: center;
     margin-bottom: 30px;
     padding-bottom: 20px;
-    border-bottom: 2px solid #667eea;
+    border-bottom: 2px solid #FF4500;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.header-logo {
+    max-height: 60px;
+    height: auto;
+    width: auto;
 }
 
 .header h1 {
-    color: #667eea;
+    color: #FF4500;
     font-size: 32px;
 }
 
@@ -96,7 +115,7 @@ body {
 }
 
 .filters-container h3 {
-    color: #667eea;
+    color: #FF4500;
     margin-bottom: 15px;
 }
 
@@ -151,7 +170,7 @@ body {
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #FF4500;
 }
 
 .select-with-add {
@@ -175,23 +194,23 @@ body {
 }
 
 .btn-primary {
-    background: #667eea;
+    background: #FF4500;
     color: white;
 }
 
 .btn-primary:hover {
-    background: #5568d3;
+    background: #E63E00;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    box-shadow: 0 4px 12px rgba(255, 69, 0, 0.4);
 }
 
 .btn-secondary {
-    background: #6c757d;
+    background: #4169E1;
     color: white;
 }
 
 .btn-secondary:hover {
-    background: #5a6268;
+    background: #3555C7;
 }
 
 .btn-small {
@@ -243,7 +262,7 @@ body {
 }
 
 .machines-table thead {
-    background: #667eea;
+    background: linear-gradient(135deg, #FF4500 0%, #FF6B35 100%);
     color: white;
 }
 
@@ -330,11 +349,11 @@ body {
     align-items: center;
     margin-bottom: 25px;
     padding-bottom: 15px;
-    border-bottom: 2px solid #667eea;
+    border-bottom: 2px solid #FF4500;
 }
 
 .modal-header h2 {
-    color: #667eea;
+    color: #FF4500;
     font-size: 24px;
 }
 
@@ -386,7 +405,7 @@ body {
 
 .last-change-user {
     font-weight: 500;
-    color: #667eea;
+    color: #FF4500;
 }
 
 /* Action Buttons in Tabelle */
@@ -401,6 +420,16 @@ body {
         flex-direction: column;
         align-items: flex-start;
         gap: 15px;
+    }
+    
+    .header-left {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .header-logo {
+        max-height: 50px;
     }
     
     .filters-grid {

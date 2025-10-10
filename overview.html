@@ -29,12 +29,20 @@
                     <input type="text" id="filter-fega-nr" placeholder="Filtern...">
                 </div>
                 <div class="filter-group">
-                    <label>Typ</label>
-                    <input type="text" id="filter-typ" placeholder="Filtern...">
+                    <label>Hersteller</label>
+                    <input type="text" id="filter-hersteller" placeholder="Filtern...">
+                </div>
+                <div class="filter-group">
+                    <label>Model / Bauart</label>
+                    <input type="text" id="filter-model" placeholder="Filtern...">
                 </div>
                 <div class="filter-group">
                     <label>Abteilung</label>
                     <input type="text" id="filter-abteilung" placeholder="Filtern...">
+                </div>
+                <div class="filter-group">
+                    <label>Art-Kundendienst</label>
+                    <input type="text" id="filter-art-kundendienst" placeholder="Filtern...">
                 </div>
                 <div class="filter-group">
                     <label>Betr. Std.</label>
@@ -62,8 +70,10 @@
                 <thead>
                     <tr>
                         <th>Fega Nr.</th>
-                        <th>Typ</th>
+                        <th>Hersteller</th>
+                        <th>Model / Bauart</th>
                         <th>Abteilung</th>
+                        <th>Art-Kundendienst</th>
                         <th>Betr. Std.</th>
                         <th>UVV/PSA</th>
                         <th>Kommentar</th>
@@ -94,13 +104,17 @@
                     <input type="number" id="fega-nr" name="fega-nr" required>
                 </div>
                 <div class="form-group">
-                    <label for="typ">Typ *</label>
+                    <label for="hersteller">Hersteller *</label>
                     <div class="select-with-add">
-                        <select id="typ" name="typ" required>
+                        <select id="hersteller" name="hersteller" required>
                             <option value="">Bitte wählen...</option>
                         </select>
-                        <button type="button" id="add-typ-btn" class="btn-small">+ Neu</button>
+                        <button type="button" id="add-hersteller-btn" class="btn-small">+ Neu</button>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="model">Model / Bauart *</label>
+                    <input type="text" id="model" name="model" required>
                 </div>
                 <div class="form-group">
                     <label for="abteilung">Abteilung *</label>
@@ -110,6 +124,14 @@
                         </select>
                         <button type="button" id="add-abteilung-btn" class="btn-small">+ Neu</button>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="art-kundendienst">Art-Kundendienst *</label>
+                    <select id="art-kundendienst" name="art-kundendienst" required>
+                        <option value="">Bitte wählen...</option>
+                        <option value="kleiner Kundendienst">Kleiner Kundendienst</option>
+                        <option value="großer Kundendienst">Großer Kundendienst</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="betr-std">Betr. Std. (Stunden)</label>

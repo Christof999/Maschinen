@@ -17,20 +17,20 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 // Globale Variablen
 let machines = [];
-let typOptions = [];
+let herstellerOptions = [];
 let abteilungOptions = [];
 let currentEditId = null;
 
 // Datenbank Referenzen
 const machinesRef = ref(database, 'machines');
-const typOptionsRef = ref(database, 'options/typ');
+const herstellerOptionsRef = ref(database, 'options/hersteller');
 const abteilungOptionsRef = ref(database, 'options/abteilung');
 
 // Initialisierung
 init();
 
 async function init() {
-    await loadTypOptions();
+    await loadHerstellerOptions();
     await loadAbteilungOptions();
     await loadMachines();
     setupEventListeners();
@@ -48,7 +48,7 @@ function setupEventListeners() {
     document.getElementById('reset-filters-btn').addEventListener('click', resetFilters);
 
     // Filter Inputs
-    ['filter-fega-nr', 'filter-typ', 'filter-abteilung', 'filter-betr-std', 'filter-uvv-status', 'filter-kommentar'].forEach(id => {
+    ['filter-fega-nr', 'filter-hersteller', 'filter-model', 'filter-abteilung', 'filter-art-kundendienst', 'filter-betr-std', 'filter-uvv-status', 'filter-kommentar'].forEach(id => {
         document.getElementById(id).addEventListener('input', applyFilters);
     });
 
@@ -74,10 +74,10 @@ function setupEventListeners() {
     // Formular speichern
     document.getElementById('entry-form').addEventListener('submit', handleSaveEntry);
 
-    // Typ hinzufügen
-    document.getElementById('add-typ-btn').addEventListener('click', () => {
-        document.getElementById('option-field-type').value = 'typ';
-        document.getElementById('add-option-title').textContent = 'Neuer Typ';
+    // Hersteller hinzufügen
+    document.getElementById('add-hersteller-btn').addEventListener('click', () => {
+        document.getElementById('option-field-type').value = 'hersteller';
+        document.getElementById('add-option-title').textContent = 'Neuer Hersteller';
         showModal('add-option-modal');
     });
 
@@ -117,18 +117,18 @@ async function loadMachines() {
     }
 }
 
-async function loadTypOptions() {
+async function loadHerstellerOptions() {
     try {
-        const snapshot = await get(typOptionsRef);
+        const snapshot = await get(herstellerOptionsRef);
         if (snapshot.exists()) {
-            typOptions = snapshot.val();
+            herstellerOptions = snapshot.val();
         } else {
-            typOptions = ['Magaziner'];
-            await set(typOptionsRef, typOptions);
+            herstellerOptions = ['Magaziner'];
+            await set(herstellerOptionsRef, herstellerOptions);
         }
-        updateTypSelect();
+        updateHerstellerSelect();
     } catch (error) {
-        console.error('Fehler beim Laden der Typ-Optionen:', error);
+        console.error('Fehler beim Laden der Hersteller-Optionen:', error);
     }
 }
 
@@ -147,11 +147,11 @@ async function loadAbteilungOptions() {
     }
 }
 
-function updateTypSelect() {
-    const select = document.getElementById('typ');
+function updateHerstellerSelect() {
+    const select = document.getElementById('hersteller');
     const currentValue = select.value;
     select.innerHTML = '<option value="">Bitte wählen...</option>';
-    typOptions.forEach(option => {
+    herstellerOptions.forEach(option => {
         const opt = document.createElement('option');
         opt.value = option;
         opt.textContent = option;
@@ -196,8 +196,10 @@ function renderTable(filteredMachines = null) {
         
         row.innerHTML = `
             <td>${machine.fegaNr}</td>
-            <td>${machine.typ}</td>
+            <td>${machine.hersteller || '-'}</td>
+            <td>${machine.model || '-'}</td>
             <td>${machine.abteilung}</td>
+            <td>${machine.artKundendienst || '-'}</td>
             <td>${machine.betrStd || '-'}</td>
             <td><span class="uvv-status ${uvvStatus}">${uvvDate}</span></td>
             <td>${machine.kommentar || '-'}</td>
@@ -323,8 +325,10 @@ function formatUVVDate(uvvDate) {
 function applyFilters() {
     const filters = {
         fegaNr: document.getElementById('filter-fega-nr').value.toLowerCase(),
-        typ: document.getElementById('filter-typ').value.toLowerCase(),
+        hersteller: document.getElementById('filter-hersteller').value.toLowerCase(),
+        model: document.getElementById('filter-model').value.toLowerCase(),
         abteilung: document.getElementById('filter-abteilung').value.toLowerCase(),
+        artKundendienst: document.getElementById('filter-art-kundendienst').value.toLowerCase(),
         betrStd: document.getElementById('filter-betr-std').value.toLowerCase(),
         uvvStatus: document.getElementById('filter-uvv-status').value,
         kommentar: document.getElementById('filter-kommentar').value.toLowerCase()
@@ -332,8 +336,10 @@ function applyFilters() {
 
     const filtered = machines.filter(machine => {
         if (filters.fegaNr && !machine.fegaNr.toString().includes(filters.fegaNr)) return false;
-        if (filters.typ && !machine.typ.toLowerCase().includes(filters.typ)) return false;
+        if (filters.hersteller && machine.hersteller && !machine.hersteller.toLowerCase().includes(filters.hersteller)) return false;
+        if (filters.model && machine.model && !machine.model.toLowerCase().includes(filters.model)) return false;
         if (filters.abteilung && !machine.abteilung.toLowerCase().includes(filters.abteilung)) return false;
+        if (filters.artKundendienst && machine.artKundendienst && !machine.artKundendienst.toLowerCase().includes(filters.artKundendienst)) return false;
         if (filters.betrStd && machine.betrStd && !machine.betrStd.toString().includes(filters.betrStd)) return false;
         if (filters.uvvStatus && getUVVStatus(machine.uvvPsa) !== filters.uvvStatus) return false;
         if (filters.kommentar && machine.kommentar && !machine.kommentar.toLowerCase().includes(filters.kommentar)) return false;
@@ -346,8 +352,10 @@ function applyFilters() {
 
 function resetFilters() {
     document.getElementById('filter-fega-nr').value = '';
-    document.getElementById('filter-typ').value = '';
+    document.getElementById('filter-hersteller').value = '';
+    document.getElementById('filter-model').value = '';
     document.getElementById('filter-abteilung').value = '';
+    document.getElementById('filter-art-kundendienst').value = '';
     document.getElementById('filter-betr-std').value = '';
     document.getElementById('filter-uvv-status').value = '';
     document.getElementById('filter-kommentar').value = '';
@@ -359,8 +367,10 @@ async function handleSaveEntry(e) {
     e.preventDefault();
     
     const fegaNr = parseInt(document.getElementById('fega-nr').value);
-    const typ = document.getElementById('typ').value;
+    const hersteller = document.getElementById('hersteller').value;
+    const model = document.getElementById('model').value;
     const abteilung = document.getElementById('abteilung').value;
+    const artKundendienst = document.getElementById('art-kundendienst').value;
     const betrStd = parseFloat(document.getElementById('betr-std').value) || null;
     const uvvPsa = document.getElementById('uvv-psa').value;
     const kommentar = document.getElementById('kommentar').value;
@@ -376,8 +386,10 @@ async function handleSaveEntry(e) {
     
     const machineData = {
         fegaNr,
-        typ,
+        hersteller,
+        model,
         abteilung,
+        artKundendienst,
         betrStd,
         uvvPsa,
         kommentar,
@@ -411,8 +423,10 @@ window.editMachine = function(id) {
     document.getElementById('modal-title').textContent = 'Eintrag bearbeiten';
     document.getElementById('fega-nr').value = machine.fegaNr;
     document.getElementById('fega-nr').disabled = true;
-    document.getElementById('typ').value = machine.typ;
+    document.getElementById('hersteller').value = machine.hersteller || '';
+    document.getElementById('model').value = machine.model || '';
     document.getElementById('abteilung').value = machine.abteilung;
+    document.getElementById('art-kundendienst').value = machine.artKundendienst || '';
     document.getElementById('betr-std').value = machine.betrStd || '';
     document.getElementById('uvv-psa').value = machine.uvvPsa;
     document.getElementById('kommentar').value = machine.kommentar || '';
@@ -444,12 +458,12 @@ async function handleAddOption(e) {
     if (!newValue) return;
     
     try {
-        if (fieldType === 'typ') {
-            if (!typOptions.includes(newValue)) {
-                typOptions.push(newValue);
-                await set(typOptionsRef, typOptions);
-                updateTypSelect();
-                document.getElementById('typ').value = newValue;
+        if (fieldType === 'hersteller') {
+            if (!herstellerOptions.includes(newValue)) {
+                herstellerOptions.push(newValue);
+                await set(herstellerOptionsRef, herstellerOptions);
+                updateHerstellerSelect();
+                document.getElementById('hersteller').value = newValue;
             }
         } else if (fieldType === 'abteilung') {
             if (!abteilungOptions.includes(newValue)) {

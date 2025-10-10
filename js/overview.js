@@ -104,10 +104,17 @@ async function loadMachines() {
     try {
         const snapshot = await get(machinesRef);
         if (snapshot.exists()) {
-            machines = Object.entries(snapshot.val()).map(([id, data]) => ({
-                id,
-                ...data
-            }));
+            machines = Object.entries(snapshot.val()).map(([id, data]) => {
+                // Migration: Falls altes "typ" Feld existiert aber kein "hersteller", verwende "typ" als "hersteller"
+                if (data.typ && !data.hersteller) {
+                    data.hersteller = data.typ;
+                }
+                
+                return {
+                    id,
+                    ...data
+                };
+            });
         } else {
             machines = [];
         }
@@ -366,7 +373,7 @@ function resetFilters() {
 async function handleSaveEntry(e) {
     e.preventDefault();
     
-    const fegaNr = parseInt(document.getElementById('fega-nr').value);
+    const fegaNr = document.getElementById('fega-nr').value.trim().toUpperCase();
     const hersteller = document.getElementById('hersteller').value;
     const model = document.getElementById('model').value;
     const abteilung = document.getElementById('abteilung').value;
@@ -378,8 +385,14 @@ async function handleSaveEntry(e) {
     const editId = document.getElementById('edit-fega-nr').value;
     const isEdit = editId !== '';
     
+    // Validiere Fega Nr.
+    if (!fegaNr) {
+        alert('Bitte geben Sie eine Fega Nr. ein!');
+        return;
+    }
+    
     // Check ob Fega Nr. bereits existiert (nur bei neuem Eintrag)
-    if (!isEdit && machines.some(m => m.fegaNr === fegaNr)) {
+    if (!isEdit && machines.some(m => m.fegaNr.toString().toUpperCase() === fegaNr)) {
         alert('Diese Fega Nr. existiert bereits!');
         return;
     }
@@ -404,8 +417,9 @@ async function handleSaveEntry(e) {
             // Update
             await update(ref(database, `machines/${editId}`), machineData);
         } else {
-            // Create - Verwende fegaNr als ID
-            await set(ref(database, `machines/${fegaNr}`), machineData);
+            // Create - Verwende fegaNr als ID (bereinigt für Firebase-Key)
+            const firebaseKey = fegaNr.replace(/[.#$\[\]]/g, '_');
+            await set(ref(database, `machines/${firebaseKey}`), machineData);
         }
         
         hideModal('entry-modal');
@@ -423,7 +437,8 @@ window.editMachine = function(id) {
     document.getElementById('modal-title').textContent = 'Eintrag bearbeiten';
     document.getElementById('fega-nr').value = machine.fegaNr;
     document.getElementById('fega-nr').disabled = true;
-    document.getElementById('hersteller').value = machine.hersteller || '';
+    // Fallback: Falls hersteller leer ist, verwende typ (für alte Daten)
+    document.getElementById('hersteller').value = machine.hersteller || machine.typ || '';
     document.getElementById('model').value = machine.model || '';
     document.getElementById('abteilung').value = machine.abteilung;
     document.getElementById('art-kundendienst').value = machine.artKundendienst || '';

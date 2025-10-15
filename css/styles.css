@@ -248,6 +248,28 @@ body {
     background: #138496;
 }
 
+/* Table Info */
+.table-info {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10px;
+}
+
+.machine-counter {
+    background: #f8f9fa;
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    font-size: 14px;
+    color: #666;
+    font-weight: 500;
+}
+
+.machine-counter span {
+    color: #FF4500;
+    font-weight: 600;
+}
+
 /* Tabelle */
 .table-container {
     overflow-x: auto;

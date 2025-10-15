@@ -184,9 +184,13 @@ function updateAbteilungSelect() {
 function renderTable(filteredMachines = null) {
     const tbody = document.getElementById('machines-tbody');
     const noDataMessage = document.getElementById('no-data-message');
+    const machineCountElement = document.getElementById('machine-count');
     const machinesToRender = filteredMachines !== null ? filteredMachines : machines;
 
     tbody.innerHTML = '';
+
+    // Counter aktualisieren
+    machineCountElement.textContent = machinesToRender.length;
 
     if (machinesToRender.length === 0) {
         noDataMessage.style.display = 'block';

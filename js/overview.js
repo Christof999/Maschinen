@@ -25,6 +25,8 @@ let currentEditId = null;
 const machinesRef = ref(database, 'machines');
 const herstellerOptionsRef = ref(database, 'options/hersteller');
 const abteilungOptionsRef = ref(database, 'options/abteilung');
+const changesRef = ref(database, 'changes');
+const userLastLoginRef = ref(database, 'userLastLogin');
 
 // Initialisierung
 init();
@@ -34,6 +36,9 @@ async function init() {
     await loadAbteilungOptions();
     await loadMachines();
     setupEventListeners();
+    
+    // Prüfe auf Änderungen seit letztem Login
+    await checkForChangesSinceLastLogin();
 }
 
 // Event Listeners
@@ -92,6 +97,13 @@ function setupEventListeners() {
     document.querySelectorAll('.close-add-option-modal').forEach(btn => {
         btn.addEventListener('click', () => {
             hideModal('add-option-modal');
+        });
+    });
+
+    // Changes Modal schließen
+    document.querySelectorAll('.close-changes-modal').forEach(btn => {
+        btn.addEventListener('click', () => {
+            hideModal('changes-modal');
         });
     });
 
@@ -374,65 +386,6 @@ function resetFilters() {
 }
 
 // CRUD Operationen
-async function handleSaveEntry(e) {
-    e.preventDefault();
-    
-    const fegaNr = document.getElementById('fega-nr').value.trim().toUpperCase();
-    const hersteller = document.getElementById('hersteller').value;
-    const model = document.getElementById('model').value;
-    const abteilung = document.getElementById('abteilung').value;
-    const artKundendienst = document.getElementById('art-kundendienst').value;
-    const betrStd = parseFloat(document.getElementById('betr-std').value) || null;
-    const uvvPsa = document.getElementById('uvv-psa').value;
-    const kommentar = document.getElementById('kommentar').value;
-    
-    const editId = document.getElementById('edit-fega-nr').value;
-    const isEdit = editId !== '';
-    
-    // Validiere Fega Nr.
-    if (!fegaNr) {
-        alert('Bitte geben Sie eine Fega Nr. ein!');
-        return;
-    }
-    
-    // Check ob Fega Nr. bereits existiert (nur bei neuem Eintrag)
-    if (!isEdit && machines.some(m => m.fegaNr.toString().toUpperCase() === fegaNr)) {
-        alert('Diese Fega Nr. existiert bereits!');
-        return;
-    }
-    
-    const machineData = {
-        fegaNr,
-        hersteller,
-        model,
-        abteilung,
-        artKundendienst,
-        betrStd,
-        uvvPsa,
-        kommentar,
-        lastChange: {
-            user: currentUser,
-            timestamp: new Date().toISOString()
-        }
-    };
-    
-    try {
-        if (isEdit) {
-            // Update
-            await update(ref(database, `machines/${editId}`), machineData);
-        } else {
-            // Create - Verwende fegaNr als ID (bereinigt für Firebase-Key)
-            const firebaseKey = fegaNr.replace(/[.#$\[\]]/g, '_');
-            await set(ref(database, `machines/${firebaseKey}`), machineData);
-        }
-        
-        hideModal('entry-modal');
-        await loadMachines();
-    } catch (error) {
-        console.error('Fehler beim Speichern:', error);
-        alert('Fehler beim Speichern: ' + error.message);
-    }
-}
 
 window.editMachine = function(id) {
     const machine = machines.find(m => m.id === id);
@@ -460,7 +413,16 @@ window.deleteMachine = async function(id) {
     }
     
     try {
+        // Hole Maschinendaten vor dem Löschen für die Verfolgung
+        const machine = machines.find(m => m.id === id);
+        
         await remove(ref(database, `machines/${id}`));
+        
+        // Verfolge Löschung
+        if (machine) {
+            await trackChange('deleted', id, machine);
+        }
+        
         await loadMachines();
     } catch (error) {
         console.error('Fehler beim Löschen:', error);
@@ -516,4 +478,218 @@ window.addEventListener('click', (e) => {
         e.target.style.display = 'none';
     }
 });
+
+// Änderungsverfolgung
+async function trackChange(type, machineId, machineData, oldData = null) {
+    try {
+        const changeData = {
+            type: type, // 'created', 'updated', 'status_changed'
+            machineId: machineId,
+            machineData: machineData,
+            oldData: oldData,
+            user: currentUser,
+            timestamp: new Date().toISOString()
+        };
+        
+        const changeKey = `${Date.now()}_${currentUser}`;
+        await set(ref(database, `changes/${changeKey}`), changeData);
+    } catch (error) {
+        console.error('Fehler beim Verfolgen der Änderung:', error);
+    }
+}
+
+async function checkForChangesSinceLastLogin() {
+    try {
+        // Hole letzten Login-Zeitpunkt des aktuellen Nutzers
+        const lastLoginSnapshot = await get(ref(database, `userLastLogin/${currentUser}`));
+        let lastLoginTime = null;
+        
+        if (lastLoginSnapshot.exists()) {
+            lastLoginTime = new Date(lastLoginSnapshot.val());
+        }
+        
+        // Hole alle Änderungen seit dem letzten Login
+        const changesSnapshot = await get(changesRef);
+        let relevantChanges = [];
+        let changesArray = [];
+        
+        // Zeitberechnung für 24-Stunden-Fenster
+        const now = new Date();
+        const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        
+        if (changesSnapshot.exists()) {
+            const allChanges = changesSnapshot.val();
+            changesArray = Object.entries(allChanges).map(([key, change]) => ({
+                key,
+                ...change
+            }));
+            
+            // Filtere Änderungen seit dem letzten Login ODER der letzten 24 Stunden
+            // Zeige ALLE Änderungen, unabhängig vom Nutzer der sie gemacht hat
+            relevantChanges = changesArray.filter(change => {
+                const changeTime = new Date(change.timestamp);
+                const isAfterLastLogin = !lastLoginTime || changeTime > lastLoginTime;
+                const isWithinLast24Hours = changeTime > last24Hours;
+                const isImportantChange = change.type === 'created' || change.type === 'status_changed' || change.type === 'updated' || change.type === 'deleted';
+                
+                // Zeige Änderungen wenn sie nach dem letzten Login ODER innerhalb der letzten 24 Stunden sind
+                return (isAfterLastLogin || isWithinLast24Hours) && isImportantChange;
+            });
+            
+            // Sortiere nach Zeitstempel (neueste zuerst)
+            relevantChanges.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+        
+        // Debug: Log alle gefundenen Änderungen
+        console.log('=== ÄNDERUNGS-CHECK DEBUG ===');
+        console.log('Aktueller Nutzer:', currentUser);
+        console.log('Letzter Login:', lastLoginTime);
+        console.log('Letzte 24 Stunden:', last24Hours);
+        console.log('Alle Änderungen:', changesArray);
+        console.log('Relevante Änderungen:', relevantChanges);
+        console.log('================================');
+        
+        // Zeige Pop-up wenn relevante Änderungen vorhanden sind
+        if (relevantChanges.length > 0) {
+            showChangesModal(relevantChanges);
+        }
+        
+    } catch (error) {
+        console.error('Fehler beim Prüfen der Änderungen:', error);
+    }
+}
+
+function showChangesModal(changes) {
+    const modal = document.getElementById('changes-modal');
+    const changesList = document.getElementById('changes-list');
+    
+    changesList.innerHTML = '';
+    
+    // Zeige Anzahl der Änderungen im Header
+    const modalTitle = modal.querySelector('h2');
+    modalTitle.textContent = `Änderungen der letzten 24 Stunden (${changes.length})`;
+    
+    changes.forEach(change => {
+        const changeItem = document.createElement('div');
+        changeItem.className = 'change-item';
+        
+        let changeText = '';
+        let changeClass = '';
+        
+        if (change.type === 'created') {
+            changeText = `Neue Maschine hinzugefügt: ${change.machineData.fegaNr} (${change.machineData.hersteller} ${change.machineData.model})`;
+            changeClass = 'change-new';
+        } else if (change.type === 'status_changed') {
+            const oldStatus = change.oldData.status;
+            const newStatus = change.machineData.status;
+            const statusText = {
+                'green': 'Grün',
+                'yellow': 'Gelb', 
+                'red': 'Rot'
+            };
+            changeText = `Statuswechsel bei ${change.machineData.fegaNr}: ${statusText[oldStatus]} → ${statusText[newStatus]}`;
+            changeClass = 'change-status';
+        } else if (change.type === 'updated') {
+            changeText = `Maschine bearbeitet: ${change.machineData.fegaNr} (${change.machineData.hersteller} ${change.machineData.model})`;
+            changeClass = 'change-updated';
+        } else if (change.type === 'deleted') {
+            changeText = `Maschine gelöscht: ${change.machineData.fegaNr} (${change.machineData.hersteller} ${change.machineData.model})`;
+            changeClass = 'change-deleted';
+        }
+        
+        // Markiere eigene Änderungen
+        const isOwnChange = change.user === currentUser;
+        const userClass = isOwnChange ? 'change-user-own' : 'change-user-other';
+        
+        changeItem.innerHTML = `
+            <div class="change-content">
+                <div class="change-text ${changeClass}">${changeText}</div>
+                <div class="change-meta">
+                    <span class="change-user ${userClass}">${change.user}${isOwnChange ? ' (Sie)' : ''}</span>
+                    <span class="change-time">${new Date(change.timestamp).toLocaleString('de-DE')}</span>
+                </div>
+            </div>
+        `;
+        
+        changesList.appendChild(changeItem);
+    });
+    
+    modal.style.display = 'flex';
+}
+
+// Erweiterte CRUD Operationen mit Änderungsverfolgung
+async function handleSaveEntry(e) {
+    e.preventDefault();
+    
+    const fegaNr = document.getElementById('fega-nr').value.trim().toUpperCase();
+    const hersteller = document.getElementById('hersteller').value;
+    const model = document.getElementById('model').value;
+    const abteilung = document.getElementById('abteilung').value;
+    const artKundendienst = document.getElementById('art-kundendienst').value;
+    const betrStd = parseFloat(document.getElementById('betr-std').value) || null;
+    const uvvPsa = document.getElementById('uvv-psa').value;
+    const kommentar = document.getElementById('kommentar').value;
+    
+    const editId = document.getElementById('edit-fega-nr').value;
+    const isEdit = editId !== '';
+    
+    // Validiere Fega Nr.
+    if (!fegaNr) {
+        alert('Bitte geben Sie eine Fega Nr. ein!');
+        return;
+    }
+    
+    // Check ob Fega Nr. bereits existiert (nur bei neuem Eintrag)
+    if (!isEdit && machines.some(m => m.fegaNr.toString().toUpperCase() === fegaNr)) {
+        alert('Diese Fega Nr. existiert bereits!');
+        return;
+    }
+    
+    const machineData = {
+        fegaNr,
+        hersteller,
+        model,
+        abteilung,
+        artKundendienst,
+        betrStd,
+        uvvPsa,
+        kommentar,
+        lastChange: {
+            user: currentUser,
+            timestamp: new Date().toISOString()
+        }
+    };
+    
+    try {
+        if (isEdit) {
+            // Update - prüfe auf Statuswechsel und normale Updates
+            const oldMachine = machines.find(m => m.id === editId);
+            const oldStatus = getUVVStatus(oldMachine.uvvPsa);
+            const newStatus = getUVVStatus(uvvPsa);
+            
+            await update(ref(database, `machines/${editId}`), machineData);
+            
+            // Verfolge Statuswechsel
+            if (oldStatus !== newStatus && (oldStatus === 'green' && newStatus === 'yellow' || oldStatus === 'yellow' && newStatus === 'red')) {
+                await trackChange('status_changed', editId, { ...machineData, status: newStatus }, { status: oldStatus });
+            } else {
+                // Verfolge normale Updates (wenn kein Statuswechsel)
+                await trackChange('updated', editId, machineData, oldMachine);
+            }
+        } else {
+            // Create - Verwende fegaNr als ID (bereinigt für Firebase-Key)
+            const firebaseKey = fegaNr.replace(/[.#$\[\]]/g, '_');
+            await set(ref(database, `machines/${firebaseKey}`), machineData);
+            
+            // Verfolge neue Erstellung
+            await trackChange('created', firebaseKey, machineData);
+        }
+        
+        hideModal('entry-modal');
+        await loadMachines();
+    } catch (error) {
+        console.error('Fehler beim Speichern:', error);
+        alert('Fehler beim Speichern: ' + error.message);
+    }
+}
 

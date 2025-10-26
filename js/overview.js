@@ -508,14 +508,16 @@ async function checkForChangesSinceLastLogin() {
             lastLoginTime = new Date(lastLoginSnapshot.val());
         }
         
+        // Nur prüfen, wenn ein letzter Login existiert (nicht beim ersten Mal)
+        if (!lastLoginTime) {
+            console.log('Kein letzter Login vorhanden - zeige keine Änderungen');
+            return;
+        }
+        
         // Hole alle Änderungen seit dem letzten Login
         const changesSnapshot = await get(changesRef);
         let relevantChanges = [];
         let changesArray = [];
-        
-        // Zeitberechnung für 24-Stunden-Fenster
-        const now = new Date();
-        const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
         
         if (changesSnapshot.exists()) {
             const allChanges = changesSnapshot.val();
@@ -524,16 +526,15 @@ async function checkForChangesSinceLastLogin() {
                 ...change
             }));
             
-            // Filtere Änderungen seit dem letzten Login ODER der letzten 24 Stunden
-            // Zeige ALLE Änderungen, unabhängig vom Nutzer der sie gemacht hat
+            // Filtere Statuswechsel seit dem letzten Login
+            // Zeige NUR Statuswechsel (Grün→Gelb, Gelb→Rot), unabhängig vom Nutzer der sie gemacht hat
             relevantChanges = changesArray.filter(change => {
                 const changeTime = new Date(change.timestamp);
-                const isAfterLastLogin = !lastLoginTime || changeTime > lastLoginTime;
-                const isWithinLast24Hours = changeTime > last24Hours;
-                const isImportantChange = change.type === 'created' || change.type === 'status_changed' || change.type === 'updated' || change.type === 'deleted';
+                const isAfterLastLogin = changeTime > lastLoginTime;
+                const isStatusChange = change.type === 'status_changed';
                 
-                // Zeige Änderungen wenn sie nach dem letzten Login ODER innerhalb der letzten 24 Stunden sind
-                return (isAfterLastLogin || isWithinLast24Hours) && isImportantChange;
+                // Zeige nur Statuswechsel seit dem letzten Login
+                return isAfterLastLogin && isStatusChange;
             });
             
             // Sortiere nach Zeitstempel (neueste zuerst)
@@ -544,7 +545,6 @@ async function checkForChangesSinceLastLogin() {
         console.log('=== ÄNDERUNGS-CHECK DEBUG ===');
         console.log('Aktueller Nutzer:', currentUser);
         console.log('Letzter Login:', lastLoginTime);
-        console.log('Letzte 24 Stunden:', last24Hours);
         console.log('Alle Änderungen:', changesArray);
         console.log('Relevante Änderungen:', relevantChanges);
         console.log('================================');
@@ -565,9 +565,9 @@ function showChangesModal(changes) {
     
     changesList.innerHTML = '';
     
-    // Zeige Anzahl der Änderungen im Header
-    const modalTitle = modal.querySelector('h2');
-    modalTitle.textContent = `Änderungen der letzten 24 Stunden (${changes.length})`;
+        // Zeige Anzahl der Änderungen im Header
+        const modalTitle = modal.querySelector('h2');
+        modalTitle.textContent = `Statuswechsel seit letztem Login (${changes.length})`;
     
     changes.forEach(change => {
         const changeItem = document.createElement('div');
@@ -669,13 +669,11 @@ async function handleSaveEntry(e) {
             
             await update(ref(database, `machines/${editId}`), machineData);
             
-            // Verfolge Statuswechsel
+            // Verfolge NUR wichtige Statuswechsel (Grün→Gelb, Gelb→Rot)
             if (oldStatus !== newStatus && (oldStatus === 'green' && newStatus === 'yellow' || oldStatus === 'yellow' && newStatus === 'red')) {
                 await trackChange('status_changed', editId, { ...machineData, status: newStatus }, { status: oldStatus });
-            } else {
-                // Verfolge normale Updates (wenn kein Statuswechsel)
-                await trackChange('updated', editId, machineData, oldMachine);
             }
+            // Normale Updates werden nicht mehr getrackt
         } else {
             // Create - Verwende fegaNr als ID (bereinigt für Firebase-Key)
             const firebaseKey = fegaNr.replace(/[.#$\[\]]/g, '_');

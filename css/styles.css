@@ -450,6 +450,16 @@ body {
     color: #dc3545;
 }
 
+.change-text.change-status-yellow {
+    color: #ffc107;
+    font-weight: 600;
+}
+
+.change-text.change-status-red {
+    color: #dc3545;
+    font-weight: 600;
+}
+
 .change-text.change-updated {
     color: #007bff;
 }

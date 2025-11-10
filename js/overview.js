@@ -500,6 +500,21 @@ async function trackChange(type, machineId, machineData, oldData = null) {
 
 async function checkForChangesSinceLastLogin() {
     try {
+        // Hole alle Maschinen mit Status gelb oder rot und sortiere sie (rot zuerst, dann gelb)
+        const machinesWithYellowOrRedStatus = machines
+            .filter(machine => {
+                const status = getUVVStatus(machine.uvvPsa);
+                return status === 'yellow' || status === 'red';
+            })
+            .sort((a, b) => {
+                const statusA = getUVVStatus(a.uvvPsa);
+                const statusB = getUVVStatus(b.uvvPsa);
+                // Rot kommt vor Gelb
+                if (statusA === 'red' && statusB === 'yellow') return -1;
+                if (statusA === 'yellow' && statusB === 'red') return 1;
+                return 0;
+            });
+        
         // Hole letzten Login-Zeitpunkt des aktuellen Nutzers
         const lastLoginSnapshot = await get(ref(database, `userLastLogin/${currentUser}`));
         let lastLoginTime = null;
@@ -508,50 +523,40 @@ async function checkForChangesSinceLastLogin() {
             lastLoginTime = new Date(lastLoginSnapshot.val());
         }
         
-        // Nur prüfen, wenn ein letzter Login existiert (nicht beim ersten Mal)
-        if (!lastLoginTime) {
-            console.log('Kein letzter Login vorhanden - zeige keine Änderungen');
-            return;
-        }
-        
-        // Hole alle Änderungen seit dem letzten Login
+        // Hole alle Änderungen seit dem letzten Login (für zusätzliche Info über Statuswechsel)
         const changesSnapshot = await get(changesRef);
-        let relevantChanges = [];
-        let changesArray = [];
+        let recentStatusChanges = [];
         
-        if (changesSnapshot.exists()) {
+        if (lastLoginTime && changesSnapshot.exists()) {
             const allChanges = changesSnapshot.val();
-            changesArray = Object.entries(allChanges).map(([key, change]) => ({
+            const changesArray = Object.entries(allChanges).map(([key, change]) => ({
                 key,
                 ...change
             }));
             
             // Filtere Statuswechsel seit dem letzten Login
-            // Zeige NUR Statuswechsel (Grün→Gelb, Gelb→Rot), unabhängig vom Nutzer der sie gemacht hat
-            relevantChanges = changesArray.filter(change => {
+            recentStatusChanges = changesArray.filter(change => {
                 const changeTime = new Date(change.timestamp);
                 const isAfterLastLogin = changeTime > lastLoginTime;
                 const isStatusChange = change.type === 'status_changed';
                 
-                // Zeige nur Statuswechsel seit dem letzten Login
                 return isAfterLastLogin && isStatusChange;
             });
             
             // Sortiere nach Zeitstempel (neueste zuerst)
-            relevantChanges.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            recentStatusChanges.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         }
         
-        // Debug: Log alle gefundenen Änderungen
-        console.log('=== ÄNDERUNGS-CHECK DEBUG ===');
+        // Debug: Log alle gefundenen Maschinen
+        console.log('=== LOGIN POP-UP DEBUG ===');
         console.log('Aktueller Nutzer:', currentUser);
-        console.log('Letzter Login:', lastLoginTime);
-        console.log('Alle Änderungen:', changesArray);
-        console.log('Relevante Änderungen:', relevantChanges);
+        console.log('Maschinen mit gelb/rot Status:', machinesWithYellowOrRedStatus.length);
+        console.log('Statuswechsel seit letztem Login:', recentStatusChanges.length);
         console.log('================================');
         
-        // Zeige Pop-up wenn relevante Änderungen vorhanden sind
-        if (relevantChanges.length > 0) {
-            showChangesModal(relevantChanges);
+        // Zeige Pop-up wenn Maschinen mit gelb/rot Status vorhanden sind
+        if (machinesWithYellowOrRedStatus.length > 0) {
+            showChangesModal(machinesWithYellowOrRedStatus, recentStatusChanges);
         }
         
     } catch (error) {
@@ -559,55 +564,59 @@ async function checkForChangesSinceLastLogin() {
     }
 }
 
-function showChangesModal(changes) {
+function showChangesModal(machinesWithYellowOrRed, recentStatusChanges = []) {
     const modal = document.getElementById('changes-modal');
     const changesList = document.getElementById('changes-list');
     
     changesList.innerHTML = '';
     
-        // Zeige Anzahl der Änderungen im Header
-        const modalTitle = modal.querySelector('h2');
-        modalTitle.textContent = `Statuswechsel seit letztem Login (${changes.length})`;
+    // Zeige Anzahl der Maschinen im Header
+    const modalTitle = modal.querySelector('h2');
+    modalTitle.textContent = `Maschinen mit Status Gelb oder Rot (${machinesWithYellowOrRed.length})`;
     
-    changes.forEach(change => {
+    // Zeige alle Maschinen mit gelb/rot Status
+    machinesWithYellowOrRed.forEach(machine => {
+        const status = getUVVStatus(machine.uvvPsa);
+        const statusText = {
+            'yellow': 'Gelb',
+            'red': 'Rot'
+        };
+        const statusClass = status === 'red' ? 'change-status-red' : 'change-status-yellow';
+        
+        // Prüfe ob es einen kürzlichen Statuswechsel für diese Maschine gab
+        const recentChange = recentStatusChanges.find(change => 
+            change.machineData && change.machineData.fegaNr === machine.fegaNr
+        );
+        
         const changeItem = document.createElement('div');
         changeItem.className = 'change-item';
         
-        let changeText = '';
-        let changeClass = '';
+        let changeText = `${machine.fegaNr} - Status: ${statusText[status]}`;
+        if (machine.hersteller || machine.model) {
+            changeText += ` (${machine.hersteller || ''} ${machine.model || ''})`.trim();
+        }
         
-        if (change.type === 'created') {
-            changeText = `Neue Maschine hinzugefügt: ${change.machineData.fegaNr} (${change.machineData.hersteller} ${change.machineData.model})`;
-            changeClass = 'change-new';
-        } else if (change.type === 'status_changed') {
-            const oldStatus = change.oldData.status;
-            const newStatus = change.machineData.status;
-            const statusText = {
+        // Wenn es einen kürzlichen Statuswechsel gab, zeige das zusätzlich an
+        if (recentChange) {
+            const oldStatus = recentChange.oldData.status;
+            const newStatus = recentChange.machineData.status;
+            const statusTextMap = {
                 'green': 'Grün',
                 'yellow': 'Gelb', 
                 'red': 'Rot'
             };
-            changeText = `Statuswechsel bei ${change.machineData.fegaNr}: ${statusText[oldStatus]} → ${statusText[newStatus]}`;
-            changeClass = 'change-status';
-        } else if (change.type === 'updated') {
-            changeText = `Maschine bearbeitet: ${change.machineData.fegaNr} (${change.machineData.hersteller} ${change.machineData.model})`;
-            changeClass = 'change-updated';
-        } else if (change.type === 'deleted') {
-            changeText = `Maschine gelöscht: ${change.machineData.fegaNr} (${change.machineData.hersteller} ${change.machineData.model})`;
-            changeClass = 'change-deleted';
+            changeText += ` - Statuswechsel: ${statusTextMap[oldStatus]} → ${statusTextMap[newStatus]}`;
         }
-        
-        // Markiere eigene Änderungen
-        const isOwnChange = change.user === currentUser;
-        const userClass = isOwnChange ? 'change-user-own' : 'change-user-other';
         
         changeItem.innerHTML = `
             <div class="change-content">
-                <div class="change-text ${changeClass}">${changeText}</div>
-                <div class="change-meta">
-                    <span class="change-user ${userClass}">${change.user}${isOwnChange ? ' (Sie)' : ''}</span>
-                    <span class="change-time">${new Date(change.timestamp).toLocaleString('de-DE')}</span>
-                </div>
+                <div class="change-text ${statusClass}">${changeText}</div>
+                ${recentChange ? `
+                    <div class="change-meta">
+                        <span class="change-user">${recentChange.user}</span>
+                        <span class="change-time">Statuswechsel: ${new Date(recentChange.timestamp).toLocaleString('de-DE')}</span>
+                    </div>
+                ` : ''}
             </div>
         `;
         
